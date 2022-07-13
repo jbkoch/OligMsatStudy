@@ -1,0 +1,249 @@
+---
+title: "Kochetal_Olignaria_MsatDevelopment"
+author: "Jonathan Koch"
+date: "12/29/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+# New and improved samples
+setwd("/Volumes/GoogleDrive/My Drive/Manuscripts/Kochetal-OsmiaMicrosats/Data/AlleleTables/FinalGenotypes_v2")
+plex1 <- read.csv("Plex1-OSM_14iv2021_TN-2021-04-19_Final.csv", header = TRUE)
+
+
+```
+
+
+```{r cars}
+setwd("/Volumes/GoogleDrive/My Drive/Manuscripts/Koch-OsmiaMicroSats/Data/AlleleTables/FinalGenotypes")
+Olig_12plex <- read.csv("OSM_14iv2021_TN_Final.csv", header = TRUE)
+plex2 <- read.csv("Osmia_Plex2_Osmia_4x2021_TN_2021-10-06_Final.csv", header = TRUE)
+plex3 <- read.csv("Osmia_Plex3_4x2021_TN_2021-10-06_Final.csv", header = TRUE)
+plex4 <- read.csv("Osmia_Plex4_14x2021_2021-10-19_Final.csv", header = TRUE)
+plex5 <- read.csv("Osmia_Plex5_20x2021_Final.csv", header = TRUE)
+plex6 <- read.csv("Osmia_Plex6_20x2021_2021-10-21_Final.csv", header = TRUE)
+plex8_redo <-read.csv("WSARE_11Jan2022_TN_2_2022-01-12_Plex8.csv", header = TRUE)
+plex5_redo <-read.csv("WSARE_11Jan2022_TN_2_2022-01-12_Plex5.csv", header = TRUE)
+plex3_redo <-read.csv("WSARE_11Jan2022_TN_2_2022-01-12_Plex3.csv", header = TRUE)
+plex5_redo_2 <-read.csv("WSARE_11Jan2022_TN_1_2022-01-12_Plex5.csv", header = TRUE)
+plex2_redo <-read.csv("WSARE_11Jan2022_TN_1_2022-01-12_Plex2.csv", header = TRUE)
+plex1_redo <-read.csv("WSARE_11Jan2022_TN_1_2022-01-12_Plex1.csv", header = TRUE)
+
+df <- merge(Olig_12plex, plex2, by.x = "Name", by.y = "Name", all = TRUE)
+df1 <- merge(df, plex3, by.x = "Name", by.y = "Name", all = TRUE)
+df2 <- merge(df1, plex4, by.x = "Name", by.y = "Name", all = TRUE)
+df3 <- merge(df2, plex5, by.x = "Name", by.y = "Name", all = TRUE)
+df4 <- merge(df3, plex6, by.x = "Name", by.y = "Name", all = TRUE)
+df5 <- merge(df4, plex8_redo, by.x = "Name", by.y = "Name", all = TRUE)
+df6 <- merge(df5, plex5_redo, by.x = "Name", by.y = "Name", all = TRUE)
+df7 <- merge(df6, plex3_redo, by.x = "Name", by.y = "Name", all = TRUE)
+df8 <- merge(df7, plex5_redo_2, by.x = "Name", by.y = "Name", all = TRUE)
+df9 <- merge(df8, plex2_redo, by.x = "Name", by.y = "Name", all = TRUE)
+df10 <- merge(df9, plex1_redo, by.x = "Name", by.y = "Name", all = TRUE)
+
+write.csv(df4, "Osmia_PlexAll_Final.csv", row.names = TRUE)
+
+# Final
+df5 <- read.csv("Osmia_PlexAll_Final_v1.csv", header = TRUE)
+df6 <- read.csv("BirchCreekandCubRiverExtracts.csv", header = TRUE)
+df7 <- merge(df5, df6, by.x = "Name", by.y = "ExID.Full", all = TRUE)
+write.csv(df7, "Osmia_PlexAll_Final_v2.csv", row.names = TRUE)
+
+# Load Subset of Data
+df8 <- read.csv("Osmia_PlexAll_Final_v3_subset_CR.csv", header = TRUE, skip = 2)
+names(df8)
+```
+
+```{r}
+# New and improved samples
+setwd("/Volumes/GoogleDrive/My Drive/Manuscripts/Kochetal-OsmiaMicrosats/Data/AlleleTables/FinalGenotypes_v2")
+plex1 <- read.csv("Plex1-OSM_14iv2021_TN-2021-04-19_Final.csv", header = TRUE)
+
+
+```
+
+
+
+```{r}
+library("poppr")
+# sprintf("%03d", df$Oli119...1)
+monpop <- read.genalex("Osmia_PlexAll_Final_v3_subset.csv")
+
+```
+
+### The genotype accumulation curve ###
+
+A genotype accumulation curve is a tool that allows you to assess how much power you have to discriminate between unique individuals given a random sample of n loci. We specified sample = 1000 in our function call. This means that for each boxplot, n loci were randomly sampled 1000 times in order to create the distribution. Since this data has been curated, we can see that we have reached the plateau with 8 loci. 
+
+```{r echo=F, warning=F, message=F}
+
+gac <- genotype_curve(monpop, sample = 1000, quiet = TRUE)
+
+```
+
+### Allele frequencies, missing data, and ploidy ###
+
+A good first step after loading data is to look for missing data, rare alleles and overall quality of your data:
+
+```{r echo=F, warning=F, message=F}
+
+(pinflt <- locus_table(monpop))
+info_table(monpop, type = "missing", plot = TRUE)
+```
+
+We see that we have anywhere from 5 to 22 microsatellite alleles per locus. Locus Oli014 - 1 has the highest Simpson diversity (0.93) and Oli014 - 1 has the most evenly distirbuted alleles (0.88).
+
+### Removing loci and genotypes ##
+
+When removing loci or genotypes, you can specify a cutoff representing the percent missing to be removed. The default is 0.05 (5%).
+
+```{r echo=F, warning=F, message=F}
+library("magrittr")
+monpop %>% missingno("geno", cutoff = 0.20) %>% info_table(plot = TRUE)
+# monpop %>% missingno("loci", cutoff = 0.50) %>% info_table(plot = TRUE, scale = TRUE)
+
+```
+```{r}
+library("pegas")
+(nanhwe.full <- hw.test(monpop, B = 1000)) # performs 1000 permuatations
+```
+```{r}
+nanhwe.pop <- seppop(monpop) %>% lapply(hw.test, B = 0)
+BC <- as.data.frame(nanhwe.pop$`USA-UT_Birch_Creek`)
+as.data.frame(p.adjust(BC$`Pr(chi^2 >)`, method = "bonferroni"))
+CR <- as.data.frame(nanhwe.pop$`USA-UT_Cub_River`)
+as.data.frame(p.adjust(CR$`Pr(chi^2 >)`, method = "bonferroni"))
+
+```
+
+```{r}
+library(poppr)
+ia(monpop, sample = 999)
+monpop %>% pair.ia
+```
+```{r}
+
+```
+
+### Population structure: GST, genetic distance, and clustering ###
+
+Now we will use Hendrick’s standardized GST to assess population structure among these populations (Hedrick, 2005).
+
+```{r}
+library("mmod")
+Gst_Hedrick(monpop)
+
+```
+*Genetic Distance*
+
+```{r echo=F, message=F, warning=F}
+library("poppr")
+library("ape") # To visualize the tree using the "nj" function
+library("magrittr")
+
+set.seed(10)
+ten_samples <- sample(nInd(monpop), 10)
+mic10       <- monpop[ten_samples]
+(micdist    <- provesti.dist(mic10))
+```
+
+*The above represents the pairwise distances between these 10 samples. We will use this distance matrix to create a neighbor-joining tree.*
+
+
+```{r}
+# DAPC requires the adegenet package. Let's load this package:
+library("adegenet")
+pop(monpop) <- monpop$pop
+dapc.monpop <- dapc(monpop)
+scatter(dapc.monpop)
+```
+```{r}
+library(graph4lg)
+
+genind_to_genepop(monpop, output = "test.txt")
+```
+
+### AMOVA
+```{r}
+
+table(strata(monpop))
+
+Aeutamova <- poppr.amova(monpop, ~Pop)
+set.seed(1999)
+Aeutamova
+Aeutsignif   <- randtest(Aeutamova, nrepet = 999)
+Aeutsignif 
+plot(Aeutsignif)
+```
+```{r}
+# strata G
+# make sure you have Rtools installed
+# install from GitHub
+# devtools::install_github('ericarcher/strataG', build_vignettes = TRUE)
+
+library(strataG)
+library(adegenet)
+
+# read loci
+df <- read.csv("Osmia_PlexAll_Final_v3_adeganet_subset.csv", header = TRUE)
+df.2 <- df2gtypes(df, ploidy = 2, id.col = 1, strata.col = 2, loc.col = 3)
+
+# test for Hardy-Weinberg Equilibrium
+hwe_df.2 <- hweTest(df.2)
+hwe_df.2 <- as.data.frame(hwe_df.2)
+hwe_df.2$p.value.adjust <- p.adjust(hwe_df.2$hwe_df.2, method = "bonferroni")
+write.csv(hwe_df.2, "Results/results_hwe_insularis.csv", row.names = TRUE)
+
+# test for Linkage Disequilibirum
+LD_df.2 <- LDgenepop(df.2)
+LD_df.2
+LD_df.2.adjust <- p.adjust(LD_df.2$p.value)
+LD_df.2$p.value.adjust <- LD_df.2.adjust
+(sort(LD_df.2$p.value.adjust))
+write.csv(LD_df.2, "Results/results_LD_insularis.csv", row.names = TRUE)
+
+# Remove loci not in HWE or in LD
+df <- subset(df,select = -c() )
+```
+
+```{r}
+# read loci - this is the final data analysis
+df <- read.csv("GMB-11-25-20-p1-Bombus_insularis_PlexAB_combined_sibsremoved_adegenet_removedloci.csv", header = TRUE)
+df.3 <- df2gtypes(df, ploidy = 2, id.col = 1, strata.col = 2, loc.col = 3)
+
+# genetic diversity
+# expected heterozygosity
+heho <- strataG::heterozygosity(df.2, by.strata = TRUE,
+                                type = c("expected", "observed"))
+wilcox.test(heho$exptd.het~heho$stratum, exact = FALSE)
+
+# allelic richness
+all.rich <- strataG::allelicRichness(df.2, by.strata = TRUE)
+wilcox.test(all.rich$allelic.richness~all.rich$stratum, exact = FALSE)
+boxplot(all.rich$allelic.richness~all.rich$stratum)
+
+# proportion of unique alleles
+all.pri <- as.data.frame(strataG::privateAlleles(df.2))
+wilcox.test(all.pri$`USA-UT_Birch_Creek`, all.pri$`USA-UT_Cub_River`, exact = FALSE)
+all.pri.rbind <- c(all.pri$HB0, all.pri$NHB0)
+
+# one big table of values
+gd.table <- cbind(heho, all.rich$allelic.richness, all.pri.rbind)
+write.csv(gd.table, "Results/insularis_genetic_diversity_metrics.csv")
+```
+```{r}
+pairwiseTest(df.2)
+overallTest(df.2)
+popStructTest(df.2)
+```
+

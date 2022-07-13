@@ -1,0 +1,247 @@
+---
+title: "Osmia lignaria population genetic analysis"
+author: "Jonathan Koch"
+date: "2/11/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+setwd("/Volumes/GoogleDrive/My Drive/Manuscripts/Kochetal-OsmiaMicrosats/Data/PopulationGeneticAnalysis")
+list.files()
+
+library("poppr")
+#monpop <- read.genalex("Osmia_PlexAll_Final_v4_sibsremoved.csv")
+monpop <- read.genalex("Osmia_PlexAll_Final_v4_sibsremoved_14loci.csv")
+# monpop <- read.genalex("1_Osmia_PlexAll_Final_v1.csv")
+
+```
+
+### The genotype accumulation curve ###
+
+A genotype accumulation curve is a tool that allows you to assess how much power you have to discriminate between unique individuals given a random sample of n loci. We specified sample = 1000 in our function call. This means that for each boxplot, n loci were randomly sampled 1000 times in order to create the distribution. Since this data has been curated, we can see that we have reached the plateau with 4 loci. 
+
+```{r echo=F, warning=F, message=F}
+
+gac <- genotype_curve(monpop, sample = 1000, quiet = TRUE)
+
+```
+### Allele frequencies, missing data, and ploidy ###
+
+A good first step after loading data is to look for missing data, rare alleles and overall quality of your data:
+
+```{r echo=F, warning=F, message=F}
+
+(pinflt <- locus_table(monpop))
+CR.monpop <- as.data.frame((pinflt <- locus_table(monpop, population = c("Cub River"))))
+BC.monpop <- as.data.frame((pinflt <- locus_table(monpop, population = c("Birch Creek"))))
+missing <- info_table(monpop, type = "missing")
+#write.csv(pinflt, "Osmia lignaria locus summary.csv")
+#write.csv(missing, "Osmia lignaria missing data summary.csv")
+
+# Compare 1-D
+var.test(CR.monpop$`1-D`, BC.monpop$`1-D`) # F = 1.462, num df = 14, denom df = 14, p-value = 0.4864
+t.test(CR.monpop$`1-D`, BC.monpop$`1-D`, var.equal = TRUE) # t = -0.35309, df = 28, p-value = 0.7267
+mean(BC.monpop$`1-D`)
+sd(BC.monpop$`1-D`)/sqrt(nrow(BC.monpop))
+mean(CR.monpop$`1-D`)
+sd(CR.monpop$`1-D`)/sqrt(nrow(CR.monpop))
+```
+
+### Removing loci and genotypes ##
+
+When removing loci or genotypes, you can specify a cutoff representing the percent missing to be removed. The default is 0.05 (5%).
+
+```{r echo=F, warning=F, message=F}
+library("magrittr")
+monpop %>% missingno("geno", cutoff = 0.20) %>% info_table(plot = TRUE)
+# monpop %>% missingno("loci", cutoff = 0.50) %>% info_table(plot = TRUE, scale = TRUE)
+
+```
+```{r}
+# strata G
+# make sure you have Rtools installed
+# install from GitHub
+# devtools::install_github('ericarcher/strataG', build_vignettes = TRUE)
+
+library(strataG)
+library(adegenet)
+
+# read loci
+df <- read.csv("Osmia_PlexAll_Final_v4_adegenet_sibsremoved.csv", header = TRUE)
+df.2 <- df2gtypes(df, ploidy = 2, id.col = 1, strata.col = 2, loc.col = 3)
+
+# test for Hardy-Weinberg Equilibrium
+hwe_df.2 <- hweTest(df.2)
+hwe_df.2 <- as.data.frame(hwe_df.2)
+hwe_df.2$p.value.adjust <- p.adjust(hwe_df.2$hwe_df.2, method = "bonferroni")
+# write.csv(hwe_df.2, "Results/results_hwe_Osmialignaria_BCCR.csv", row.names = TRUE)
+
+# test for Linkage Disequilibirum
+LD_df.2 <- LDgenepop(df.2)
+LD_df.2
+LD_df.2.adjust <- p.adjust(LD_df.2$p.value)
+LD_df.2$p.value.adjust <- LD_df.2.adjust
+(sort(LD_df.2$p.value.adjust))
+# write.csv(LD_df.2, "Results/results_LD_Osmialignaria_BCCR.csv", row.names = TRUE)
+
+# Remove loci not in HWE or in LD
+ncol(df)
+getLociNames(df.2)
+df.3 <- subset(df, select = -c(Oli053, Oli064, Oli076,Oli101,
+                               Oli127, Oli160,Oli61901,Oli84207,
+                               Oli053.1, Oli064.1, Oli076.1,Oli101.1,
+                               Oli127.1, Oli160.1,Oli61901.1,Oli84207.1))
+ncol(df.3)
+
+df.4 <- df2gtypes(df.3, ploidy = 2, id.col = 1, strata.col = 2, loc.col = 3)
+
+```
+
+```{r}
+# genetic diversity
+# expected heterozygosity
+he <- strataG::heterozygosity(df.4, by.strata = TRUE,
+                                type = c("expected"))
+ho <- strataG::heterozygosity(df.4, by.strata = TRUE,
+                                type = c("observed"))
+# Merge the data
+heho <- merge(he,ho)
+
+# Birch Creek He vs Ho
+BC.df <- heho %>%
+  subset(stratum=="Birch Creek")
+var.test(BC.df$exptd.het, BC.df$obsvd.het) # F = 0.61897, num df = 13, denom df = 13, p-value = 0.3984
+t.test(BC.df$exptd.het, BC.df$obsvd.het, var.equal = TRUE) # t = 0.32483, df = 24.635, p-value = 0.7481
+
+# Cub River He vs Ho
+CR.df <- heho %>%
+  subset(stratum=="Cub River")
+var.test(CR.df$exptd.het, CR.df$obsvd.het) # F = 0.97675, num df = 13, denom df = 13, p-value = 0.9668
+t.test(CR.df$exptd.het, CR.df$obsvd.het, var.equal = TRUE) # t = 0.70948, df = 25.996, p-value = 0.4843
+
+# Birch Creek vs Cub River He
+var.test(he$exptd.het~he$stratum) # F = 0.69418, num df = 13, denom df = 13, p-value = 0.5197
+t.test(he$exptd.het~he$stratum, var.equal = TRUE) # t = 0.37863, df = 26, p-value = 0.708
+
+# allelic richness
+all.rich <- strataG::allelicRichness(df.4, by.strata = TRUE)
+var.test(all.rich$allelic.richness~all.rich$stratum) # F = 0.68377, num df = 13, denom df = 13, p-value = 0.5027
+t.test(all.rich$allelic.richness~all.rich$stratum, var.equal = TRUE) # t = 0.79038, df = 26, p-value = 0.4365
+
+
+
+# Number of alleles
+num.alleles <- numAlleles(df.4, by.strata = TRUE)
+var.test(num.alleles$num.alleles~num.alleles$stratum) # F = 0.38337, num df = 13, denom df = 13, p-value = 0.09586
+t.test(num.alleles$num.alleles~num.alleles$stratum, var.equal = TRUE) # t = -0.26198, df = 26, p-value = 0.7954
+
+# proportion of unique alleles
+uniq.alleles <- propUniqueAlleles(df.4, by.strata = TRUE)
+var.test(uniq.alleles$num.unique~uniq.alleles$stratum) # F = 0.31422, num df = 13, denom df = 13, p-value = 0.04603
+t.test(uniq.alleles$num.unique~uniq.alleles$stratum, var.equal = FALSE) # t = -0.20208, df = 20.436, p-value = 0.8418
+wilcox.test(uniq.alleles$num.unique~uniq.alleles$stratum) # W = 112.5, p-value = 0.5129
+
+num.unique.BC <- uniq.alleles %>%
+  subset(stratum == "Birch Creek")
+median(num.unique.BC$num.unique)
+
+num.unique.CR <- uniq.alleles %>%
+  subset(stratum == "Cub River")
+median(num.unique.CR$num.unique)
+
+wilcox.test(uniq.alleles$num.unique~uniq.alleles$stratum) #  W = 112.5, p-value = 0.5129
+
+# one big table of values
+gd.table <- cbind(he,ho$obsvd.het, all.rich$allelic.richness, num.alleles$num.alleles, uniq.alleles$num.unique, test$`1-D`)
+
+# write.csv(gd.table, "Results/Osmialignaria_genetic_diversity_metrics.csv")
+```
+
+```{r}
+library(inbreedR)
+
+# convert data
+
+df.3.BC <- subset(df.3, df.3$Pop=="Birch Creek")
+df.3.CR <- subset(df.3, df.3$Pop=="Cub River")
+
+df.3.BC <- subset(df.3.BC, select = -c(me, Pop))
+df.3.CR <- subset(df.3.CR, select = -c(me, Pop))
+
+df.4.BC <- convert_raw(df.3.BC)
+df.4.CR <- convert_raw(df.3.CR)
+
+check_data(df.4.BC, num_ind = 18, num_loci = 14)
+check_data(df.4.CR, num_ind = 23, num_loci = 14)
+
+
+g2_all_microsats.BC <- g2_microsats(df.4.BC, nperm = 100, nboot = 100, CI=0.95) 
+g2_all_microsats.BC # No evidence of inbreeding
+g2_all_microsats.CR <- g2_microsats(df.4.CR, nperm = 100, nboot = 100, CI=0.95)
+g2_all_microsats.CR # Evidence of inbreeding
+
+par(mfrow=c(2,1))
+
+plot(g2_all_microsats.BC, main = "Birch Creek",
+     col = "cornflowerblue", cex.axis=0.85)
+plot(g2_all_microsats.CR, main = "Cub River",
+     col = "cornflowerblue", cex.axis=0.85)
+
+HHC.BC <- HHC(df.4.BC, reps = 1000)
+HHC.BC
+HHC.CR <- HHC(df.4.CR, reps = 1000)
+HHC.CR
+
+par(mfrow=c(1,2))
+plot(HHC.BC, main = "Birch Creek",
+     col = "cornflowerblue", cex.axis=0.85)
+plot(HHC.CR, main = "Cub River",
+     col = "darkgoldenrod1", cex.axis=0.85)
+```
+
+```{r}
+ovl <- overallTest(df.4, stats = c("all"), nrep = 1000, keep.null = TRUE) # significant Fst
+
+popStruct <- popStructTest(df.4, stats = c("all"), nrep = 1000, quietly = TRUE)
+popStruct
+
+```
+
+```{r}
+# DAPC requires the adegenet package. Let's load this package:
+library("adegenet")
+pop(monpop) <- monpop$pop
+dapc.monpop <- dapc(monpop, var.contrib = TRUE, scale = FALSE, n.pca = 10, n.da = nPop(monpop)-1)
+scatter(dapc.monpop, cell = 0, pch = 18:19, cstar = 0, mstree = TRUE, lwd = 2, lty = 2)
+```
+
+### AMOVA
+```{r}
+
+table(strata(monpop))
+
+Aeutamova <- poppr.amova(monpop, ~Pop, cutoff = 0.20) # panmictic population; most variation occurs within samples.
+set.seed(1999)
+Aeutamova
+Aeutsignif<- randtest(Aeutamova, nrepet = 999)
+Aeutsignif
+plot(Aeutsignif)
+```
+
+```{r}
+library("ape") # To visualize the tree using the "nj" function
+library("magrittr")
+
+micdist <- provesti.dist(monpop)
+theTree <- micdist %>%
+  nj() %>%    # calculate neighbor-joining tree
+  ladderize() # organize branches by clade
+plot(theTree)
+add.scale.bar(length = 0.05) # add a scale bar showing 5% difference.
+
+```
+
